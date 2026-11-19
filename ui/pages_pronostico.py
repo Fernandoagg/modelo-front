@@ -122,7 +122,7 @@ def render(state: dict[str, Any]) -> None:
         tot = float(base["transaction_qty"].sum()) or 1.0
         factor = float(base[base["product_type"] == producto]["transaction_qty"].sum()) / tot
 
-    serie = predecir_serie_temporal(store, cat, fecha_str, temp, rain, dias_hist=7, dias_futuro=7)
+    serie = predecir_serie_temporal(store, cat, fecha_str, temp, rain, dias_hist=14, dias_futuro=7)
     proj = serie[serie["tipo"] == "Pronóstico"].copy()
     hist = serie[serie["tipo"] == "Histórico real"].copy()
     for col in ("pronostico", "intervalo_min", "intervalo_max", "media_ref"):
@@ -174,7 +174,7 @@ def render(state: dict[str, Any]) -> None:
           <div class="kpi"><div>
             <div class="kpi-top"><span class="kpi-label">Incertidumbre del pronóstico</span>{icon('help', 22, '#81756F')}</div>
             <div class="row" style="margin-top:14px;gap:10px;"><span class="dot" style="background:#72856B;width:12px;height:12px;"></span><span class="h3" style="font-size:20px;">Modelo validado</span></div>
-            <p class="p" style="margin-top:6px;">Bandas al 85% de confianza empírica (RMSE test {m['rmse']:.2f} uds; LightGBM Tweedie).</p></div>
+            <p class="p" style="margin-top:6px;">Bandas al 85% de confianza empírica. Confiabilidad en test: <strong>MAPE {m['mape_core']:.2f}%</strong> (categorías principales) • WAPE {m['wape']:.2f}%.</p></div>
             <div class="between small" style="margin-top:14px;font-size:13.5px;"><span>Horizonte de predicción</span><span class="mono" style="color:#1B1C18;">t + 7 días</span></div></div>
         </div>
         """
@@ -219,7 +219,7 @@ def render(state: dict[str, Any]) -> None:
             html(
                 f"""<div class="row" style="align-items:flex-start;gap:14px;"><h3 class="h2">Ventas históricas observadas vs Pronóstico de demanda</h3>
                 <span class="badge sq b-neutral b-caps" style="white-space:normal;">{store}</span></div>
-                <p class="p" style="margin-top:6px;">Evolución de 14 días: 7 días de ventas reales de Maven ({_fc(hist['fecha'].iloc[0]) if not hist.empty else '-'} - {_fc(corte)})
+                <p class="p" style="margin-top:6px;">Evolución de 21 días: 14 días de ventas reales de Maven ({_fc(hist['fecha'].iloc[0]) if not hist.empty else '-'} - {_fc(corte)})
                 seguidos de la proyección del modelo ({_fc(fecha)} - {_fc(fin)}).{' Producto: <strong>' + producto + '</strong> (desagregado por participación histórica).' if factor != 1.0 else ''}</p>"""
             )
         with h2:
@@ -266,15 +266,15 @@ def render(state: dict[str, Any]) -> None:
         with t2:
             with st.popover("Filtrar alertas", icon=":material/filter_list:", width="stretch"):
                 filtro = st.radio("Mostrar", ["Todas", "Solo demanda alta / atípica", "Demanda habitual"], key="pron_filtro")
-        with t3:
-            st.download_button("Exportar (.CSV)", df_fr.to_csv(index=False).encode("utf-8"),
-                               file_name=f"pronostico_franjas_{store.replace(' ', '_')}_{fecha_str}.csv",
-                               icon=":material/download:", width="stretch", key="pron_csv")
         if filtro == "Solo demanda alta / atípica":
             df_fr = df_fr[df_fr["nivel"] != "Habitual"]
         elif filtro == "Demanda habitual":
             df_fr = df_fr[df_fr["nivel"] == "Habitual"]
-
+        nombre_base = store.replace(" ", "_").replace("'", "")
+        with t3:
+            st.download_button("Exportar (.CSV)", df_fr.to_csv(index=False).encode("utf-8-sig"),
+                               file_name=f"pronostico_franjas_{nombre_base}_{fecha_str}.csv",
+                               icon=":material/download:", width="stretch", key="pron_csv")
         total_pag = max(1, math.ceil(len(df_fr) / FILAS_POR_PAGINA))
         pag = min(st.session_state.get("pron_pagina", 1), total_pag)
         vista_df = df_fr.iloc[(pag - 1) * FILAS_POR_PAGINA: pag * FILAS_POR_PAGINA]
@@ -310,8 +310,8 @@ def render(state: dict[str, Any]) -> None:
         with f4:
             st.button("", icon=":material/chevron_right:", on_click=_pag, args=(1, total_pag), disabled=pag >= total_pag, key="pron_next")
         with f5:
-            st.download_button("Descargar consulta (.CSV)", df_fr.to_csv(index=False).encode("utf-8"),
-                               file_name=f"consulta_{store.replace(' ', '_')}_{fecha_str}.csv",
+            st.download_button("Descargar consulta (.CSV)", df_fr.to_csv(index=False).encode("utf-8-sig"),
+                               file_name=f"consulta_{nombre_base}_{fecha_str}.csv",
                                icon=":material/download:", type="tertiary", key="pron_csv2")
 
     # ---------------- CTA ----------------
