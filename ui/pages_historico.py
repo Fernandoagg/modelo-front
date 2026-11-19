@@ -273,7 +273,7 @@ def render(state: dict[str, Any]) -> None:
                 <p class="p">Información consolidada directa del dataset Maven Coffee Shop Sales sin imputaciones artificiales.</p>"""
             )
         with b:
-            st.download_button("CSV crudo", tabla.to_csv(index=False).encode("utf-8"), file_name="rendimiento_categorias.csv",
+            st.download_button("Exportar CSV", tabla.to_csv(index=False).encode("utf-8-sig"), file_name="rendimiento_categorias.csv",
                                icon=":material/download:", width="stretch", key="hist_csv")
         filas = "".join(
             f"""<tr><td><span class="row" style="gap:10px;"><span class="dot" style="background:{CATEGORY_COLORS.get(c['categoria'], '#D9D6CE')};"></span>{c['categoria']}</span></td>

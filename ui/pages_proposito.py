@@ -247,7 +247,7 @@ def render(state: dict[str, Any]) -> None:
                       <div style="background:#3A2C25;border-radius:4px;padding:14px;"><div style="color:#D9CBC3;font-size:13px;">ROI ANUALIZADO</div><div class="mono" style="font-size:24px;color:#FFDBCA;">{roi:.1f}x</div><div style="color:#D9CBC3;font-size:13px;">Payback en {payback:.0f} semanas</div></div>
                     </div>"""
                 )
-                st.download_button("Exportar Proyección Personalizada (CSV)", proy.to_csv(index=False).encode("utf-8"),
+                st.download_button("Exportar Proyección Personalizada (CSV)", proy.to_csv(index=False).encode("utf-8-sig"),
                                    file_name="proyeccion_roi_cafesmart.csv", icon=":material/download:", width="stretch", key="prop_roi_csv")
 
     # ---------------- playground técnico ----------------
