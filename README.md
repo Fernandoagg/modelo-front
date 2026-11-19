@@ -33,3 +33,21 @@ streamlit run app.py
   Varios widgets comparten el mismo estado maestro mediante `bound()` (sin modificar keys de widgets ya instanciados).
 - `ui/pages_*.py`: una vista por archivo (proposito, resumen, pronostico, recomendaciones, historico, estado).
 - `assets/`: fotos y avatar extraídos de los PDF de Figma + especificación técnica (Entrega 2) descargable.
+
+## Cumplimiento de la especificación (Entrega 2 / 3)
+
+| Requisito | Dónde se cumple |
+|---|---|
+| RF-01 Formulario de entradas | Barra lateral → *Controles de predicción* (y panel *Semana* del header) |
+| RF-02 Disparador de inferencia | Botón *Calcular predicción (RF-02)*; la app re-infiere en cada cambio (< 3 s) |
+| RF-03 KPIs + semáforo + confiabilidad | Resumen: demanda, semáforo Baja/Habitual/Alta (verde/ámbar/rojo), MAPE y WAPE del modelo |
+| RF-04 Filtros reactivos | Sucursal, categoría y fecha en todas las vistas; filtros propios en Histórico |
+| RF-05 Casos precargados | *Caso de demostración* + *Cargar caso* |
+| RNF-01 Latencia | Re-ejecución típica 0.5–2 s por vista |
+| RNF-02 Entradas inválidas | `st.warning`/`st.error` (fechas fuera de ventana, Tmáx < Tmín) sin romper la sesión |
+| RNF-03 Desacoplamiento | El front solo consume `predecir()` vía `services/backend_bridge.py` |
+| Gráficas 1-3 | Serie 14 d reales + 7 d pronóstico con banda 85%, barras por categoría, dispersión clima |
+| Exportación CSV | UTF-8 con BOM (acentos correctos en Excel); *Exportar reporte* exporta la vista activa |
+
+> Fuera de alcance según la Entrega 2 (Exclusión 2): pronóstico por SKU y horario. La app muestra una
+> **desagregación** por producto/hora usando participaciones históricas reales, indicada como tal en la UI.
