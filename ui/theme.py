@@ -267,6 +267,7 @@ header[data-testid="stHeader"] button,header[data-testid="stHeader"] a{pointer-e
 /* tablas */
 .tbl-wrap{background:#FFFFFF;border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);}
 .tbl{width:100%;border-collapse:collapse;}
+.tbl-wrap,div:has(> table.tbl){overflow-x:auto;max-width:100%;}
 .tbl thead th{background:var(--surface);font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:16px 18px;}
 .tbl thead th.num{font-family:var(--mono);}
 .tbl td{padding:16px 18px;border-top:1px solid var(--border);font-size:14px;color:var(--text);vertical-align:middle;}
