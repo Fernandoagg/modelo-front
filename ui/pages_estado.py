@@ -18,6 +18,7 @@ from services.backend_bridge import (
     load_transacciones,
     metricas_ganador,
 )
+from src.config import WEATHER_FEATURES  # type: ignore  # noqa: E402
 from ui.charts import plot_benchmark_modelos, plot_feature_importance
 from ui.shell import ir_a
 from ui.theme import badge, html, icon, page_header
@@ -61,7 +62,7 @@ def render(state: dict[str, Any]) -> None:
           <div class="kpi" style="min-height:0;"><div class="kpi-top"><span class="kpi-label">Sucursales mapeadas</span>{icon('storefront', 22, '#1B1C18')}</div>
             <div class="kpi-value">{n_suc} / 3</div><div class="p" style="margin-top:6px;">{', '.join(STORE_STATE_MAP)}</div></div>
           <div class="kpi" style="min-height:0;"><div class="kpi-top"><span class="kpi-label">Covariables clima</span>{icon('partly_cloudy_day', 22, '#1B1C18')}</div>
-            <div class="kpi-value">4 / 4</div><div class="row p" style="gap:8px;margin-top:6px;align-items:flex-start;"><span class="dot" style="background:#72856B;margin-top:6px;"></span>Temp. mín/media/máx + precipitación (estatal mensual)</div></div>
+            <div class="kpi-value">{len(WEATHER_FEATURES)} / {len(WEATHER_FEATURES)}</div><div class="row p" style="gap:8px;margin-top:6px;align-items:flex-start;"><span class="dot" style="background:#72856B;margin-top:6px;"></span>Temp. mín/media/máx, precipitación y amplitud térmica (estatal mensual)</div></div>
           <div class="kpi" style="min-height:0;"><div class="kpi-top"><span class="kpi-label">Modelos candidatos</span>{icon('account_tree', 22, '#1B1C18')}</div>
             <div class="kpi-value">{len(candidatos)} + Base</div><div class="row p" style="gap:8px;margin-top:6px;color:#7B5641;">{icon('tune', 18)} Partición cronológica (corte {meta.get('cutoff_date', '')})</div></div>
         </div>
@@ -89,7 +90,7 @@ def render(state: dict[str, Any]) -> None:
             <p class="p" style="font-size:15px;">Covariables para aislar el impacto de lluvia y temperatura en la demanda de bebidas frías vs. calientes.</p>
             <div class="surface"><div class="eyebrow">Fuente actual</div><div style="font-size:16px;color:#1B1C18;">Dataset climático estatal de México (mensual)</div></div>
             <div class="surface"><div class="eyebrow">Variables meteorológicas en el modelo</div>
-              {''.join(f'<div class="between p" style="margin-top:6px;color:#1B1C18;"><span class="row" style="gap:6px;">{icon(i, 18)}{n}</span><span class="mono small">{u}</span></div>' for i, n, u in [('thermostat', 'Temperatura mínima', '°C'), ('device_thermostat', 'Temperatura media', '°C'), ('thermostat_auto', 'Temperatura máxima', '°C'), ('rainy', 'Precipitación acumulada', 'mm')])}</div>
+              {''.join(f'<div class="between p" style="margin-top:6px;color:#1B1C18;"><span class="row" style="gap:6px;">{icon(i, 18)}{n}</span><span class="mono small">{u}</span></div>' for i, n, u in [('thermostat', 'Temperatura mínima', '°C'), ('device_thermostat', 'Temperatura media', '°C'), ('thermostat_auto', 'Temperatura máxima', '°C'), ('rainy', 'Precipitación acumulada', 'mm'), ('height', 'Amplitud térmica', '°C')])}</div>
             <div class="surface"><div class="eyebrow">Cruce sucursal → estado</div>
               {''.join(f'<div class="between p" style="margin-top:4px;color:#1B1C18;"><span>{k}</span><span class="mono small">{v}</span></div>' for k, v in STORE_STATE_MAP.items())}
               <div class="eyebrow" style="margin-top:10px;">Siguiente paso</div><div class="p" style="color:#1B1C18;">Sustituir el clima mensual por API diaria (Open-Meteo) para capturar eventos puntuales.</div></div>
