@@ -72,8 +72,8 @@ def ir_a(pagina: str) -> None:
 # ----------------------------------------------------------------------------
 # Casos demo (RF-05)
 # ----------------------------------------------------------------------------
-def _cargar_caso_demo() -> None:
-    nombre = st.session_state.get("w_demo_case", "")
+def _cargar_caso_demo(widget_key: str = "w_demo_case") -> None:
+    nombre = st.session_state.get(widget_key, "")
     caso = CASOS_DEMO.get(nombre) or CASOS_DEMO["Caso 1: Lunes operativo en Lower Manhattan (Escenario Figma)"]
     st.session_state["store_location"] = caso["store_location"]
     st.session_state["product_category"] = caso["product_category"]
@@ -95,43 +95,48 @@ def _calcular() -> None:
     )
 
 
-def render_panel_simulacion(opciones_categoria: list[str]) -> None:
-    """Contenido del popover de simulación: RF-01 (entradas), RF-02 (disparador), RF-05 (casos demo)."""
-    html(
-        f"""<div class="eyebrow brown" style="margin-bottom:2px;">{icon('tune', 16)} Parámetros del escenario (RF-01)</div>
-        <p class="small" style="margin:0 0 4px 0;">Los cambios se aplican al instante en todas las vistas.</p>"""
-    )
-    opciones_demo = [k for k in CASOS_DEMO if CASOS_DEMO[k]]
-    c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
-    with c1:
-        st.selectbox("Caso de demostración (RF-05)", opciones_demo, key="w_demo_case")
-    with c2:
-        st.button("Cargar caso", icon=":material/bolt:", on_click=_cargar_caso_demo, width="stretch", key="btn_demo")
-    c1, c2 = st.columns(2)
-    with c1:
-        bound(st.selectbox, "Sucursal", "store_location", "w_store_pop", options=SUCURSALES)
-        bound(st.date_input, "Fecha objetivo", "fecha_obj", "w_fecha", min_value=date(2023, 1, 1), max_value=date(2023, 12, 31))
-    with c2:
-        if st.session_state["product_category"] not in opciones_categoria:
-            st.session_state["product_category"] = "Coffee"
-        bound(st.selectbox, "Categoría", "product_category", "w_cat_pop", options=opciones_categoria)
-        bound(st.selectbox, "Jornada operativa", "turno", "w_turno", options=TURNOS)
-    bound(st.slider, "Temperatura esperada (°C)", "temp_media", "w_temp", min_value=-5.0, max_value=40.0, step=0.5)
-    bound(st.slider, "Precipitación esperada (mm)", "precipitacion", "w_rain", min_value=0.0, max_value=150.0, step=1.0)
-    bound(st.checkbox, "Especificar Temp. Mín/Máx manual (RNF-02)", "usar_rango_termico_manual", "w_manual")
+def render_panel_simulacion(opciones_categoria: list[str], prefijo: str = "", compacto: bool = False) -> None:
+    """Formulario de escenario: RF-01 (entradas), RF-02 (disparador), RF-05 (casos demo).
+
+    Se renderiza en el Aside (`prefijo="side_"`, compacto) y en el panel del Header; ambos usan
+    keys distintas pero el mismo estado maestro, por lo que siempre muestran los mismos valores.
+    """
+    k = lambda nombre: f"{prefijo}{nombre}"  # noqa: E731
+    if not compacto:
+        html(
+            f"""<div class="eyebrow brown" style="margin-bottom:2px;">{icon('tune', 16)} Parámetros del escenario (RF-01)</div>
+            <p class="small" style="margin:0 0 4px 0;">Los cambios se aplican al instante en todas las vistas.</p>"""
+        )
+    opciones_demo = [c for c in CASOS_DEMO if CASOS_DEMO[c]]
+    st.selectbox("Caso de demostración (RF-05)", opciones_demo, key=k("w_demo_case"))
+    st.button("Cargar caso de demostración", icon=":material/bolt:", on_click=_cargar_caso_demo, args=(k("w_demo_case"),),
+              width="stretch", key=k("btn_demo"))
+    if st.session_state["product_category"] not in opciones_categoria:
+        st.session_state["product_category"] = "Coffee"
+    cols = [st.container()] * 2 if compacto else st.columns(2)
+    with cols[0]:
+        bound(st.selectbox, "Sucursal", "store_location", k("w_store_pop"), options=SUCURSALES)
+        bound(st.date_input, "Fecha objetivo", "fecha_obj", k("w_fecha"), min_value=date(2023, 1, 1), max_value=date(2023, 12, 31))
+    with cols[1]:
+        bound(st.selectbox, "Categoría", "product_category", k("w_cat_pop"), options=opciones_categoria)
+        bound(st.selectbox, "Jornada operativa", "turno", k("w_turno"), options=TURNOS)
+    bound(st.slider, "Temperatura esperada (°C)", "temp_media", k("w_temp"), min_value=-5.0, max_value=40.0, step=0.5)
+    bound(st.slider, "Precipitación esperada (mm)", "precipitacion", k("w_rain"), min_value=0.0, max_value=150.0, step=1.0)
+    bound(st.checkbox, "Especificar Temp. Mín/Máx manual (RNF-02)", "usar_rango_termico_manual", k("w_manual"))
     if st.session_state["usar_rango_termico_manual"]:
         c1, c2 = st.columns(2)
         with c1:
-            bound(st.number_input, "Temp. mínima (°C)", "temp_min_manual", "w_tmin", step=0.5)
+            bound(st.number_input, "Temp. mínima (°C)", "temp_min_manual", k("w_tmin"), step=0.5)
         with c2:
-            bound(st.number_input, "Temp. máxima (°C)", "temp_max_manual", "w_tmax", step=0.5)
-    st.button("Calcular predicción (RF-02)", icon=":material/play_arrow:", type="primary", on_click=_calcular, width="stretch", key="btn_calc")
+            bound(st.number_input, "Temp. máxima (°C)", "temp_max_manual", k("w_tmax"), step=0.5)
+    st.button("Calcular predicción (RF-02)", icon=":material/play_arrow:", type="primary", on_click=_calcular,
+              width="stretch", key=k("btn_calc"))
 
 
 # ----------------------------------------------------------------------------
 # Aside
 # ----------------------------------------------------------------------------
-def render_sidebar(n_registros: int) -> None:
+def render_sidebar(n_registros: int, opciones_categoria: list[str]) -> None:
     with st.sidebar:
         html(
             f"""
@@ -160,7 +165,9 @@ def render_sidebar(n_registros: int) -> None:
             format_func=lambda p: f":material/{iconos[p]}: {p}",
             label_visibility="collapsed",
         )
-        html('<div class="side-spacer" style="min-height:26vh;"></div>')
+        with st.expander("Controles de predicción (RF-01)", icon=":material/tune:"):
+            render_panel_simulacion(opciones_categoria, prefijo="side_", compacto=True)
+        html('<div class="side-spacer" style="min-height:14vh;"></div>')
         avatar = img_src("avatar_gerente.jpg")
         html(
             f"""

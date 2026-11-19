@@ -62,7 +62,7 @@ def main() -> None:
     if st.session_state["nav_page"] not in PAGINA_NOMBRES:
         st.session_state["nav_page"] = "Resumen operativo"
 
-    render_sidebar(len(load_transacciones()))
+    render_sidebar(len(load_transacciones()), opciones_categoria)
 
     store = st.session_state["store_location"]
     fecha_str = st.session_state["fecha_obj"].strftime("%Y-%m-%d")
