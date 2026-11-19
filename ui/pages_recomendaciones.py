@@ -18,12 +18,12 @@ from ui.shell import SUCURSALES, bound
 from ui.theme import badge, html, icon, img_src
 
 ICONOS_PRODUCTO = {
-    "Brewed Coffee - Dark Roast": "coffee_maker",
-    "Barista Espresso Blend": "grain",
-    "Croissant de Mantequilla": "bakery_dining",
-    "Earl Grey Tea (Porciones)": "emoji_food_beverage",
-    "Hot Chocolate Supreme": "local_cafe",
-    "Bagel Clásico con Queso": "lunch_dining",
+    "rec_1": "coffee_maker",
+    "rec_2": "grain",
+    "rec_3": "bakery_dining",
+    "rec_4": "emoji_food_beverage",
+    "rec_5": "local_cafe",
+    "rec_6": "cookie",
 }
 ICONOS_MOTIVO = ["trending_up", "autorenew", "schedule", "wb_twilight", "horizontal_rule", "light_mode"]
 
@@ -115,8 +115,8 @@ def render(state: dict[str, Any]) -> None:
              for r in visibles]
         )
         with c4:
-            st.download_button("Exportar guía de preparación (CSV)", guia.to_csv(index=False).encode("utf-8"),
-                               file_name=f"guia_preparacion_{store.replace(' ', '_')}_{fecha_str}.csv",
+            st.download_button("Exportar guía de preparación (CSV)", guia.to_csv(index=False).encode("utf-8-sig"),
+                               file_name=f"guia_preparacion_{store.replace(' ', '_').replace(chr(39), '')}_{fecha_str}.csv",
                                icon=":material/picture_as_pdf:", width="stretch", key="recs_csv")
         html(f'<div class="eyebrow row" style="gap:8px;margin-top:4px;"><span class="dot" style="background:#7B5641;"></span>Mostrando {len(visibles)} recomendaciones operativas</div>')
 
@@ -124,19 +124,16 @@ def render(state: dict[str, Any]) -> None:
     desg = {d["categoria"]: d for d in resumen["desglose"]}
     by_id = {r["id"]: r for r in recs}
     tiles = [
-        ("Brewed Coffee", "Lote Dark Roast", f"~{by_id['rec_1']['demanda_num']}", "tzs"),
-        ("Espresso Blend", "Tolvas y molienda", f"{by_id['rec_2']['demanda_num']}", "kg"),
-        ("Bakery / Viennoiserie", "Horneado previo", f"~{by_id['rec_3']['demanda_num'] + by_id['rec_6']['demanda_num']}", "uds"),
-        ("Bebidas Calientes", "Bases y cacao", f"~{by_id['rec_5']['demanda_num']}", "porc"),
+        ("Brewed Coffee", "Lote filtrado", f"~{by_id['rec_1']['cant_sugerida_num']}", "tzs"),
+        ("Espresso Blend", "Tolvas y molienda", f"{by_id['rec_2']['cant_sugerida_num']}", "kg"),
+        ("Bakery", "Croissants + scones", f"~{by_id['rec_3']['cant_sugerida_num'] + by_id['rec_6']['cant_sugerida_num']}", "uds"),
+        ("Hot Chocolate", "Bases y cacao", f"~{by_id['rec_5']['cant_sugerida_num']}", "tzs"),
     ]
     tiles_html = "".join(
         f"""<div class="surface between" style="align-items:flex-start;padding:14px;"><div><div style="font-weight:600;font-size:14px;color:#1B1C18;">{a}</div>
         <div class="mono small" style="color:#81756F;">{b}</div></div><div class="mono" style="text-align:right;font-size:20px;color:#1B1C18;">{v}<div class="small">{u}</div></div></div>"""
         for a, b, v, u in tiles
     )
-    estimado = sum(d["unidades_estimadas"] for d in resumen["desglose"] if d["categoria"] in CORE_CATEGORIES)
-    recomendado = sum(d["unidades_recomendadas"] for d in resumen["desglose"] if d["categoria"] in CORE_CATEGORIES)
-    cobertura = min(100.0, recomendado / max(1.0, estimado) * 100 - (100 - 96) * 0)
     perfil = perfil_horario_real(store, None, int(fecha.day_of_week))
     hora_ini = int(perfil[perfil["share"] > 0.02]["hora_int"].min())
 
@@ -144,8 +141,8 @@ def render(state: dict[str, Any]) -> None:
         [d for d in resumen["desglose"] if d["categoria"] in CORE_CATEGORIES and d["delta_pct_vs_ref"] > 0],
         key=lambda d: d["delta_pct_vs_ref"], reverse=True,
     )[:2]
-    nombre_cat = {"Coffee": ("Dark Roast (Lote grande)", "coffee_maker"), "Bakery": ("Croissant de Mantequilla", "bakery_dining"),
-                  "Tea": ("Earl Grey Tea", "emoji_food_beverage"), "Drinking Chocolate": ("Hot Chocolate Supreme", "local_cafe")}
+    nombre_cat = {"Coffee": ("Coffee (bebidas de café)", "coffee_maker"), "Bakery": ("Bakery (scones, pastry, biscotti)", "bakery_dining"),
+                  "Tea": ("Tea (chai, negro, herbal, verde)", "emoji_food_beverage"), "Drinking Chocolate": ("Drinking Chocolate", "local_cafe")}
     dias_pl = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábados", "domingos"]
     atip_html = "".join(
         f"""<div class="surface between" style="padding:14px;"><div class="row" style="gap:12px;">
@@ -163,10 +160,10 @@ def render(state: dict[str, Any]) -> None:
             <div class="between"><span class="eyebrow row" style="gap:8px;"><span class="dot" style="background:#7B5641;"></span>Bloque 01</span>
               <span class="p" style="font-size:13.5px;">{state['turno']}</span></div>
             <div class="h3" style="font-size:20px;margin-top:10px;">Lotes / Preparaciones prioritarias sugeridas</div>
-            <p class="p" style="margin:4px 0 14px 0;">4 categorías clave configuradas para arranque temprano de servicio según volumen pronosticado.</p>
+            <p class="p" style="margin:4px 0 14px 0;">Cantidades sugeridas (demanda + margen de la banda 85%) para arranque temprano de servicio.</p>
             <div class="grid-2" style="gap:10px;">{tiles_html}</div>
             <div class="between p" style="margin-top:auto;padding-top:18px;"><span class="row" style="gap:6px;">{icon('hourglass_top', 20)} Comenzar extracción batch: {max(5, hora_ini - 1):02d}:45 AM</span>
-              <span class="mono" style="color:#1B1C18;">{cobertura:.0f}%<br>Cobertura</span></div>
+              <span class="mono" style="color:#1B1C18;text-align:right;">Banda 85%<br>cubierta</span></div>
           </div>
           <div class="card" style="display:flex;flex-direction:column;">
             <div class="between"><span class="eyebrow row" style="gap:8px;"><span class="dot" style="background:#F2B9A0;"></span>Bloque 02</span>
@@ -227,7 +224,7 @@ def render(state: dict[str, Any]) -> None:
                 rc = st.columns(cols_w, vertical_alignment="center")
                 with rc[0]:
                     html(
-                        f"""<div class="row" style="gap:10px;align-items:flex-start;"><span style="background:#F5F4ED;border-radius:4px;padding:4px;">{icon(ICONOS_PRODUCTO.get(r['producto'], 'inventory_2'), 20)}</span>
+                        f"""<div class="row" style="gap:10px;align-items:flex-start;"><span style="background:#F5F4ED;border-radius:4px;padding:4px;">{icon(ICONOS_PRODUCTO.get(r['id'], 'inventory_2'), 20)}</span>
                         <div><div style="font-weight:600;font-size:14.5px;color:#1B1C18;">{r['producto']}</div><div class="eyebrow" style="font-size:10.5px;">{r['subtitulo']}</div></div></div>"""
                     )
                 with rc[1]:
@@ -261,7 +258,7 @@ def render(state: dict[str, Any]) -> None:
          f"Verifica que las tolvas mantengan nivel constante previo a la apertura de las {max(5, hora_ini):02d}:00 AM para evitar descalibración en extracción continua.",
          "tueste_dark_roast.jpg"),
         ("Rotación en vitrina", "Precalentado de Panadería",
-         f"La demanda matutina de croissants y bagels ({by_id['rec_3']['demanda_num'] + by_id['rec_6']['demanda_num']} uds estimadas) requiere horneado distribuido en 2 tandas para mantener frescura de corteza.",
+         f"La demanda de croissants y scones ({by_id['rec_3']['demanda_num'] + by_id['rec_6']['demanda_num']} uds estimadas) requiere horneado distribuido en 2 tandas para mantener frescura de corteza.",
          "panaderia_vitrina.jpg"),
         ("Control de calidad", "Alineación Barista en Turno",
          "El barista encargado debe cotejar los tickets emitidos contra estas pautas agregadas para reportar anomalías de consumo al fin de turno.",

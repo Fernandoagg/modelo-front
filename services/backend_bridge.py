@@ -805,127 +805,93 @@ def resumen_historico(
     }
 
 
+GRAMOS_CAFE_POR_BEBIDA = 18.5  # dosis estándar de espresso (g) usada para convertir bebidas en kg de grano
+
+# Productos recomendados: (id, nombre, subtítulo, categoría, filtro sobre el CSV Maven, unidad)
+PRODUCTOS_RECOMENDADOS = [
+    ("rec_1", "Brewed Coffee (filtrado)", "LOTE GRANDE • FILTRO BATCH", "Coffee",
+     ("product_type", ["Gourmet brewed coffee", "Organic brewed coffee", "Premium brewed coffee", "Drip coffee"]), "tazas"),
+    ("rec_2", "Barista Espresso Blend", "GRANOS KG • TOLVA PRINCIPAL", "Coffee", ("product_type", ["Barista Espresso"]), "kg"),
+    ("rec_3", "Croissants (Pastry)", "BOLLERÍA FRESCA HORNEADA", "Bakery", ("product_detail_contains", "Croissant"), "uds"),
+    ("rec_4", "Earl Grey Tea", "TÉ NEGRO • RG / LG", "Tea", ("product_detail_contains", "Earl Grey"), "infusiones"),
+    ("rec_5", "Hot Chocolate", "BEBIDA CACAO", "Drinking Chocolate", ("product_type", ["Hot chocolate"]), "tazas"),
+    ("rec_6", "Scones", "PANADERÍA FRESCA • DESAYUNO", "Bakery", ("product_type", ["Scone"]), "uds"),
+]
+
+
+def _filtrar_producto(df: pd.DataFrame, filtro: tuple[str, Any]) -> pd.DataFrame:
+    tipo, valor = filtro
+    if tipo == "product_type":
+        return df[df["product_type"].isin(valor)]
+    return df[df["product_detail"].str.contains(valor, case=False, na=False)]
+
+
+@st.cache_data(show_spinner=False)
+def mix_producto(store_location: str, dia_semana: int) -> dict[str, dict[str, Any]]:
+    """Participación real de cada producto recomendado dentro de su categoría y su hora pico (CSV Maven)."""
+    tx = _filtrar_transacciones(store_location, None, dia_semana)
+    salida: dict[str, dict[str, Any]] = {}
+    for rid, _, _, cat, filtro, _ in PRODUCTOS_RECOMENDADOS:
+        base = tx[tx["product_category"] == cat]
+        prod = _filtrar_producto(base, filtro)
+        total = float(base["transaction_qty"].sum()) or 1.0
+        por_hora = prod.groupby("hora")["transaction_qty"].sum()
+        salida[rid] = {
+            "share": float(prod["transaction_qty"].sum()) / total,
+            "hora_pico": int(por_hora.idxmax()) if not por_hora.empty else 8,
+        }
+    return salida
+
+
 def generar_recomendaciones_turno(
     store_location: str,
     fecha_str: str,
     desglose_categorias: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Genera las 6 recomendaciones operativas de inventario vinculadas con las predicciones reales."""
+    """Recomendaciones por producto derivadas de la predicción por categoría de `predecir()`.
+
+    - Demanda del producto = predicción de su categoría × participación histórica real del producto
+      (misma sucursal y mismo día de la semana) en el CSV Maven.
+    - Margen de seguridad = holgura del límite superior de la banda al 85% de la categoría.
+    - Prioridad = "Atención requerida" si la categoría está en Demanda Alta; si no, "Pendiente de revisión".
+    """
     cat_map = {item["categoria"]: item for item in desglose_categorias}
-
-    coffee_pred = cat_map.get("Coffee", {}).get("unidades_estimadas", 240.0)
-    bakery_pred = cat_map.get("Bakery", {}).get("unidades_estimadas", 65.0)
-    tea_pred = cat_map.get("Tea", {}).get("unidades_estimadas", 180.0)
-    choco_pred = cat_map.get("Drinking Chocolate", {}).get("unidades_estimadas", 45.0)
-
-    # Escalar de forma realista según las predicciones del modelo para la tienda y fecha
-    brewed_tazas = int(round(coffee_pred * 1.15))
-    brewed_sug = int(round(brewed_tazas * 1.072))
-
-    espresso_kg = round(coffee_pred * 0.055, 1)
-    espresso_sug = round(espresso_kg * 1.08, 1)
-
-    croissant_uds = int(round(bakery_pred * 1.10))
-    croissant_sug = int(round(croissant_uds * 1.085))
-
-    earl_grey_inf = int(round(tea_pred * 0.38))
-    earl_grey_sug = int(round(earl_grey_inf * 1.075))
-
-    choco_tazas = int(round(choco_pred * 1.0))
-    choco_sug = int(round(choco_tazas * 1.10))
-
-    bagel_uds = int(round(bakery_pred * 0.78))
-    bagel_sug = int(round(bagel_uds * 1.11))
-
-    return [
-        {
-            "id": "rec_1",
-            "producto": "Brewed Coffee - Dark Roast",
-            "subtitulo": "LOTE GRANDE • FILTRO BATCH",
-            "categoria": "Coffee",
-            "sucursal": store_location,
-            "demanda_estimada": f"{brewed_tazas} tazas",
-            "demanda_num": brewed_tazas,
-            "margen_seguridad": "+7.2% (WAPE ref.)",
-            "cant_sugerida": f"~{brewed_sug} tazas",
-            "motivo": "Pico habitual matutino 07:30 - 09:30",
-            "prioridad": "Revisado",
-            "estado_default": "Revisado por encargado",
-            "checked_default": True,
-        },
-        {
-            "id": "rec_2",
-            "producto": "Barista Espresso Blend",
-            "subtitulo": "GRANOS KG • TOLVA PRINCIPAL",
-            "categoria": "Coffee",
-            "sucursal": store_location,
-            "demanda_estimada": f"{espresso_kg} kg",
-            "demanda_num": espresso_kg,
-            "margen_seguridad": "+8.0% (Tueste medio)",
-            "cant_sugerida": f"~{espresso_sug} kg",
-            "motivo": "Alta rotación de bebidas con leche",
-            "prioridad": "Pendiente de revisión",
-            "estado_default": "Pendiente de revisión",
-            "checked_default": False,
-        },
-        {
-            "id": "rec_3",
-            "producto": "Croissant de Mantequilla",
-            "subtitulo": "BOLLERÍA FRESCA HORNEADA",
-            "categoria": "Bakery",
-            "sucursal": store_location,
-            "demanda_estimada": f"{croissant_uds} uds",
-            "demanda_num": croissant_uds,
-            "margen_seguridad": "+8.5% (2 tandas)",
-            "cant_sugerida": f"~{croissant_sug} uds",
-            "motivo": "Demanda concentrada antes de las 10:30",
-            "prioridad": "Atención requerida",
-            "estado_default": "Atención requerida",
-            "checked_default": False,
-        },
-        {
-            "id": "rec_4",
-            "producto": "Earl Grey Tea (Porciones)",
-            "subtitulo": "TÉ EN HOJA / SACHETS",
-            "categoria": "Tea",
-            "sucursal": store_location,
-            "demanda_estimada": f"{earl_grey_inf} infusiones",
-            "demanda_num": earl_grey_inf,
-            "margen_seguridad": "+7.5% (Estándar)",
-            "cant_sugerida": f"~{earl_grey_sug} infusiones",
-            "motivo": "Consumo regular vespertino",
-            "prioridad": "Revisado",
-            "estado_default": "Revisado",
-            "checked_default": True,
-        },
-        {
-            "id": "rec_5",
-            "producto": "Hot Chocolate Supreme",
-            "subtitulo": "BEBIDA CACAO ARTESANAL",
-            "categoria": "Drinking Chocolate",
-            "sucursal": store_location,
-            "demanda_estimada": f"{choco_tazas} tazas",
-            "demanda_num": choco_tazas,
-            "margen_seguridad": "+10.0% (Sens. clima)",
-            "cant_sugerida": f"~{choco_sug} tazas",
-            "motivo": "Demanda estable sensible a lluvia/frío",
-            "prioridad": "Revisado",
-            "estado_default": "Revisado",
-            "checked_default": True,
-        },
-        {
-            "id": "rec_6",
-            "producto": "Bagel Clásico con Queso",
-            "subtitulo": "PANADERÍA FRESCA • DESAYUNO",
-            "categoria": "Bakery",
-            "sucursal": store_location,
-            "demanda_estimada": f"{bagel_uds} uds",
-            "demanda_num": bagel_uds,
-            "margen_seguridad": "+11.0% (Cross-sale)",
-            "cant_sugerida": f"~{bagel_sug} uds",
-            "motivo": "Complemento matutino de alta demanda",
-            "prioridad": "Revisado",
-            "estado_default": "Revisado por encargado",
-            "checked_default": True,
-        },
-    ]
+    dow = int(pd.to_datetime(fecha_str).day_of_week)
+    mix = mix_producto(store_location, dow)
+    recs: list[dict[str, Any]] = []
+    for rid, nombre, subtitulo, cat, _, unidad in PRODUCTOS_RECOMENDADOS:
+        info = cat_map.get(cat, {})
+        pred_cat = float(info.get("unidades_estimadas", 0.0))
+        hi = float(info.get("rango_estimado_85", [0, pred_cat])[1]) if info else pred_cat
+        margen = max(0.0, (hi - pred_cat) / pred_cat) if pred_cat > 0 else 0.0
+        bebidas = pred_cat * mix[rid]["share"]
+        if unidad == "kg":
+            demanda = round(bebidas * GRAMOS_CAFE_POR_BEBIDA / 1000.0, 1)
+            sugerida = round(demanda * (1 + margen), 1)
+            demanda_txt, sugerida_txt = f"{demanda} kg", f"~{sugerida} kg"
+        else:
+            demanda = int(round(bebidas))
+            sugerida = int(np.ceil(demanda * (1 + margen)))
+            demanda_txt, sugerida_txt = f"{demanda} {unidad}", f"~{sugerida} {unidad}"
+        h = mix[rid]["hora_pico"]
+        alta = info.get("nivel_demanda") == "Demanda Alta"
+        recs.append(
+            {
+                "id": rid,
+                "producto": nombre,
+                "subtitulo": subtitulo,
+                "categoria": cat,
+                "sucursal": store_location,
+                "demanda_estimada": demanda_txt,
+                "demanda_num": demanda,
+                "participacion_pct": round(mix[rid]["share"] * 100, 1),
+                "margen_seguridad": f"+{margen * 100:.1f}% (banda 85%)",
+                "cant_sugerida": sugerida_txt,
+                "cant_sugerida_num": sugerida,
+                "motivo": f"Pico habitual {h:02d}:00 - {h + 1:02d}:00 ({mix[rid]['share'] * 100:.0f}% de {cat})",
+                "prioridad": "Atención requerida" if alta else "Pendiente de revisión",
+                "estado_default": "Atención requerida" if alta else "Pendiente de revisión",
+                "checked_default": False,
+            }
+        )
+    return recs
