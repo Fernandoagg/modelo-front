@@ -143,6 +143,46 @@ def test_revision_stock_solo_demanda_alta() -> None:
     assert all(a["nivel_demanda"] == "Demanda Alta" for a in alertas)
 
 
+def test_recomendaciones_coherentes_con_su_categoria() -> None:
+    """La demanda por producto nunca supera a su categoría y los productos existen en Maven."""
+    resumen = predecir_desglose_tienda("Lower Manhattan", "2023-06-26", 24.0, 15.0)
+    cat = {d["categoria"]: d["unidades_estimadas"] for d in resumen["desglose"]}
+    recs = generar_recomendaciones_turno("Lower Manhattan", "2023-06-26", resumen["desglose"])
+    suma_bakery = sum(r["demanda_num"] for r in recs if r["categoria"] == "Bakery")
+    assert suma_bakery <= cat["Bakery"] + 1
+    for r in recs:
+        if "kg" not in r["demanda_estimada"]:
+            assert r["demanda_num"] <= cat[r["categoria"]] + 1, r["producto"]
+        assert r["cant_sugerida_num"] >= r["demanda_num"]
+
+
+def test_exportaciones_csv_utf8_bom() -> None:
+    """Los CSV del header llevan BOM (acentos correctos en Excel) y suman lo mismo que el KPI."""
+    import io
+
+    import pandas as pd
+
+    from ui.pages import export_csv
+
+    resumen = predecir_desglose_tienda("Astoria", "2023-06-26", 24.0, 15.0)
+    state = {"store_summary": resumen, "store_location": "Astoria", "fecha_str": "2023-06-26"}
+    for pagina in ["Resumen operativo", "Pronóstico de demanda", "Recomendaciones de inventario", "Estado de datos y modelo"]:
+        data = export_csv(pagina, state)
+        assert data[:3] == b"\xef\xbb\xbf", pagina
+        assert len(pd.read_csv(io.BytesIO(data), encoding="utf-8-sig")) > 0, pagina
+    df = pd.read_csv(io.BytesIO(export_csv("Resumen operativo", state)), encoding="utf-8-sig")
+    assert abs(df["unidades_estimadas"].sum() - resumen["total_unidades_estimadas"]) < 0.5
+
+
+def test_serie_grafica1_14_dias_historicos() -> None:
+    """Gráfica 1 (Entrega 2): 14 días reales + 7 de pronóstico."""
+    from services.backend_bridge import predecir_serie_temporal
+
+    serie = predecir_serie_temporal("Lower Manhattan", "Coffee", "2023-06-26", 24.0, 15.0, dias_hist=14, dias_futuro=7)
+    assert (serie["tipo"] == "Histórico real").sum() == 14
+    assert (serie["tipo"] == "Pronóstico").sum() == 7
+
+
 if __name__ == "__main__":
     test_contrato_desacoplado_y_latencia_rnf01_rnf03()
     test_manejo_entradas_invalidas_rnf02()
@@ -152,4 +192,7 @@ if __name__ == "__main__":
     test_resumen_historico_coincide_con_csv()
     test_experimentos_e_importancias_desde_artefactos()
     test_revision_stock_solo_demanda_alta()
+    test_recomendaciones_coherentes_con_su_categoria()
+    test_exportaciones_csv_utf8_bom()
+    test_serie_grafica1_14_dias_historicos()
     print("ALL_FRONTEND_TESTS_PASSED_100%")
