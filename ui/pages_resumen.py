@@ -61,7 +61,7 @@ def render(state: dict[str, Any]) -> None:
     page_header(
         "Resumen operativo",
         "Consulta la demanda, revisa las condiciones del día y planifica la preparación por turno.",
-        title_badge=badge(f"Motor IA activo • {pred['modelo_usado']} (WAPE {m['wape']:.2f}%)", "peach"),
+        title_badge=badge(f"Motor IA activo • {pred['modelo_usado']} • MAPE {m['mape_core']:.2f}% • WAPE {m['wape']:.2f}%", "peach"),
         right=f'<div class="row small" style="font-weight:600;letter-spacing:.06em;color:#4F4540;font-size:13px;">'
         f'<span class="dot" style="background:#6E625B;"></span>Última inferencia: {dt.day:02d} {MESES_C[dt.month-1]} {dt.year} • '
         f'{resumen["tiempo_total_ms"]:.0f} ms</div>',
@@ -97,8 +97,12 @@ def render(state: dict[str, Any]) -> None:
     delta = resumen["delta_total_pct"]
     alertas = items_revision_stock(resumen["desglose"])
     nivel = resumen["nivel_demanda_global"]
-    nivel_badge = "amber" if nivel == "Demanda Alta" else ("sage" if nivel == "Demanda Habitual" else "neutral")
-    lluvia_txt = "Lluvia moderada/alta" if rain >= 25 else ("Prob. lluvia ligera" if rain >= 8 else meta["cielo_default"])
+    # RF-03: semáforo de tráfico previsto (verde = baja, ámbar = habitual, rojo = alta)
+    semaforo = {"Demanda Baja": ("#4E6847", "#E2EBDC", "Baja"), "Demanda Habitual": ("#A3661C", "#FBF0E2", "Habitual"),
+                "Demanda Alta": ("#BA1A1A", "#FBE9E6", "Alta")}.get(nivel, ("#A3661C", "#FBF0E2", "Habitual"))
+    nivel_html = (f'<span class="badge" style="background:{semaforo[1]};color:{semaforo[0]};">'
+                  f'<span class="b-dot"></span>{semaforo[2]}</span>')
+    lluvia_txt = "Lluvia intensa" if rain >= 35 else ("Lluvia moderada" if rain >= 10 else ("Lluvia ligera" if rain > 0 else "Sin lluvia"))
     stock_color = "#BA1A1A" if alertas else "#72856B"
     stock_detalle = ", ".join(a["categoria"] for a in alertas[:3]) if alertas else "Sin categorías en Demanda Alta."
     html(
@@ -109,7 +113,7 @@ def render(state: dict[str, Any]) -> None:
               <div class="kpi-value">{total_ref:,.0f}<span class="kpi-unit">uds</span></div></div>
             <div class="kpi-foot">Promedio {dia_pl} habituales en {store}.</div></div>
           <div class="kpi"><div>
-              <div class="kpi-top"><span class="kpi-label" style="color:#C77C55;">Demanda<br>estimada</span>{badge(nivel.replace('Demanda ', ''), nivel_badge)}</div>
+              <div class="kpi-top"><span class="kpi-label" style="color:#C77C55;">Demanda<br>estimada</span>{nivel_html}</div>
               <div class="kpi-value">{total_est:,.0f}<span class="kpi-unit">uds</span></div></div>
             <div class="kpi-foot row" style="gap:8px;"><span class="mono" style="color:#7B5641;">{delta:+.1f}%</span><span>vs. referencia media</span></div></div>
           <div class="kpi"><div>
@@ -174,8 +178,7 @@ def render(state: dict[str, Any]) -> None:
     # ---- tarjetas inferiores ----
     left, right = st.columns([5, 7.4], gap="medium")
     t_min, t_max = pred["temp_min"], pred["temp_max"]
-    prob = min(100, int(round(rain / 90 * 100))) if rain > 0 else 5
-    prob_lbl = "Alta prob. lluvia" if prob >= 50 else ("Media prob. lluvia" if prob >= 25 else "Baja prob. lluvia")
+    prob_lbl = lluvia_txt + " (escenario)"
     cielo = "Lluvioso" if rain >= 35 else ("Parcialmente nublado" if rain >= 10 else "Despejado")
     cielo_icon = "rainy" if rain >= 35 else ("partly_cloudy_day" if rain >= 10 else "sunny")
     with left:
